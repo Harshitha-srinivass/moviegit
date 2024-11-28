@@ -30,7 +30,7 @@ jobs:
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app .
 
-      # Push the Docker image to Docker Hub
+      # Push the Docker image to Docker Hu
       - name: Push Docker image to Docker Hub
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app
