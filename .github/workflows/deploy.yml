@@ -27,7 +27,6 @@ jobs:
       - name: Run tests
         run: |
           pytest --maxfail=1 --disable-warnings -q  # Run your tests here
-  /usr/bin/python3.9 -m pytest --maxfail=1 --disable-warnings -q
 
   docker-build-and-publish:
     needs: build-and-test
