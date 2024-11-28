@@ -3,7 +3,7 @@ name: Deploy Flask App to AWS EC2 using Docker
 on:
   push:
     branches:
-      - main  # Trigger the deployment on push to the main branch
+      - main  
 
 jobs:
   deploy:
