@@ -1,53 +1,116 @@
-name: Deploy Flask App to AWS EC2 using Docker
+name: CI/CD for Dockerized Flask Movie Recommendation App
 
 on:
   push:
-    branches:
-      - main  
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  deploy:
+  build-and-test:
     runs-on: ubuntu-latest
-
     steps:
-      # Checkout the code from the 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      # Set up Docker
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run tests
+        run: |
+          pytest --maxfail=1 --disable-warnings -q  # Run your tests here
+
+  docker-build-and-publish:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
-      # Log in to Docker Hub
-      - name: Login to Docker Hub
+      - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Build the Docker image
-      - name: Build Docker image
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app:cache  # Docker layer caching
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app:cache,mode=max  # Push cache
+
+  deploy-to-ec2:
+    needs: docker-build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH key
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app .
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "Host *" >> ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "  UserKnownHostsFile=/dev/null" >> ~/.ssh/config
 
-      # Push the Docker image to Docker 
-      - name: Push Docker image to Docker Hub
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app
+      - name: Test SSH Connection
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_PUBLIC_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: '300s'
+          command_timeout: '120s'
+          debug: true
+          script: echo "SSH connection successful"
 
-      # Deploy to AWS EC2
-      - name: Deploy to AWS EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ${{ secrets.AWS_SSH_PRIVATE_KEY }} ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-            # Pull the latest Docker image
-            docker pull ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app
+      - name: Install Docker and configure user on EC2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_PUBLIC_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: '300s'
+          command_timeout: '300s'
+          debug: true
+          script: |
+            sudo apt update
+            sudo apt install -y docker.io
+            sudo systemctl enable docker
+            sudo systemctl start docker
+            sudo usermod -aG docker ubuntu
+            newgrp docker
 
-            # Stop and remove any running containers
-            docker stop movie-recommendation-app || true
-            docker rm movie-recommendation-app || true
-
-            # Run the Docker container
-            docker run -d -p 5000:5000 --name movie-recommendation-app ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app
-
-            # Optionally, configure Nginx or other reverse proxy here if needed
-          EOF
+      - name: SSH into EC2 and deploy Docker container
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_PUBLIC_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: '300s'
+          command_timeout: '300s'
+          debug: true
+          script: |
+            docker stop my-movie-recommendation-container || true
+            docker rm my-movie-recommendation-container || true
+            docker pull ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app:latest
+            docker run -d --name my-movie-recommendation-container -p 5000:5000 ${{ secrets.DOCKER_USERNAME }}/movie-recommendation-app:latest
