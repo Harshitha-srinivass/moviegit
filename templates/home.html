@@ -20,10 +20,10 @@
   <!-- Auto Complete -->
   <link rel="stylesheet"
     href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css">
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='style.css') }}">
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 
   <script type="text/javascript">
-    var films = {{ suggestions|tojson }};
+    var films = {{ suggestions | tojson }};  // You can use suggestions here if passed from Flask backend
   </script>
 </head>
 
@@ -46,10 +46,14 @@
         style="background-color: #e50914; text-align: center; border-color: #e50914; width:120px;"
         disabled="true">Enter</button><br><br>
     </div>
+
+    <!-- Link to recommend page -->
+    <div class="form-group" style="text-align: center;">
+      <a href="{{ recommend.html }}" class="btn btn-primary">Get Movie Recommendations</a>
+    </div>
   </div>
 
   <div id="loader" class="text-center" style="display: none;">
-    <!-- Add a loading spinner or animation here -->
     <img src="https://i.gifer.com/YCZH.gif" alt="Loading...">
   </div>
 
@@ -69,7 +73,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='autocomplete.js') }}"></script>
-
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='recommend.js') }}"></script>
 
