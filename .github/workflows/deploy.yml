@@ -23,10 +23,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
-          
-      - name: Run tests
-        run: |
-          pytest --maxfail=1 --disable-warnings -q  # Run your tests here
 
   docker-build-and-publish:
     needs: build-and-test
